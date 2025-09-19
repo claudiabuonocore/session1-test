@@ -6,43 +6,73 @@ import { setupServer } from 'msw/node';
 import App from '../App';
 
 // Mock server to intercept API requests
+let items = [
+  { id: 1, name: 'Test Item 1', created_at: '2023-01-01T00:00:00.000Z' },
+  { id: 2, name: 'Test Item 2', created_at: '2023-01-02T00:00:00.000Z' },
+];
+
 const server = setupServer(
   // GET /api/items handler
   rest.get('/api/items', (req, res, ctx) => {
-    return res(
-      ctx.status(200),
-      ctx.json([
-        { id: 1, name: 'Test Item 1', created_at: '2023-01-01T00:00:00.000Z' },
-        { id: 2, name: 'Test Item 2', created_at: '2023-01-02T00:00:00.000Z' },
-      ])
-    );
+    return res(ctx.status(200), ctx.json(items));
   }),
-  
+
   // POST /api/items handler
   rest.post('/api/items', (req, res, ctx) => {
     const { name } = req.body;
-    
     if (!name || name.trim() === '') {
-      return res(
-        ctx.status(400),
-        ctx.json({ error: 'Item name is required' })
-      );
+      return res(ctx.status(400), ctx.json({ error: 'Item name is required' }));
     }
-    
-    return res(
-      ctx.status(201),
-      ctx.json({
-        id: 3,
-        name,
-        created_at: new Date().toISOString(),
-      })
-    );
+    const newItem = {
+      id: Math.max(0, ...items.map(i => i.id)) + 1,
+      name,
+      created_at: new Date().toISOString(),
+    };
+    items.push(newItem);
+    return res(ctx.status(201), ctx.json(newItem));
+  }),
+
+  // DELETE /api/items/:id handler
+  rest.delete('/api/items/:id', (req, res, ctx) => {
+    const id = parseInt(req.params.id, 10);
+    items = items.filter(item => item.id !== id);
+    return res(ctx.status(204));
   })
 );
 
 // Setup and teardown for the mock server
 beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  // Reset items to initial state after each test
+  items = [
+    { id: 1, name: 'Test Item 1', created_at: '2023-01-01T00:00:00.000Z' },
+    { id: 2, name: 'Test Item 2', created_at: '2023-01-02T00:00:00.000Z' },
+  ];
+  server.resetHandlers();
+});
+  test('deletes an item when delete button is clicked', async () => {
+    const user = userEvent.setup();
+    await act(async () => {
+      render(<App />);
+    });
+    // Wait for items to load
+    await waitFor(() => {
+      expect(screen.getByText('Test Item 1')).toBeInTheDocument();
+      expect(screen.getByText('Test Item 2')).toBeInTheDocument();
+    });
+
+    // Click delete button for the first item
+    const deleteButton = screen.getByLabelText('Delete Test Item 1');
+    await act(async () => {
+      await user.click(deleteButton);
+    });
+
+    // Test Item 1 should be gone
+    await waitFor(() => {
+      expect(screen.queryByText('Test Item 1')).not.toBeInTheDocument();
+      expect(screen.getByText('Test Item 2')).toBeInTheDocument();
+    });
+  });
 afterAll(() => server.close());
 
 describe('App Component', () => {

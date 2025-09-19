@@ -25,6 +25,40 @@ describe('API Endpoints', () => {
     });
   });
 
+  describe('DELETE /api/items/:id', () => {
+    it('should delete an existing item', async () => {
+      // First, create a new item to delete
+      const newItem = { name: 'Item to Delete' };
+      const createRes = await request(app)
+        .post('/api/items')
+        .send(newItem)
+        .set('Accept', 'application/json');
+      expect(createRes.status).toBe(201);
+      const id = createRes.body.id;
+
+      // Now, delete the item
+      const deleteRes = await request(app).delete(`/api/items/${id}`);
+      expect(deleteRes.status).toBe(204);
+
+      // Verify item is gone
+      const getRes = await request(app).get('/api/items');
+      const ids = getRes.body.map(item => item.id);
+      expect(ids).not.toContain(id);
+    });
+
+    it('should return 404 for non-existent item', async () => {
+      const deleteRes = await request(app).delete('/api/items/99999');
+      expect(deleteRes.status).toBe(404);
+      expect(deleteRes.body).toHaveProperty('error');
+    });
+
+    it('should return 400 for invalid id', async () => {
+      const deleteRes = await request(app).delete('/api/items/invalid');
+      expect(deleteRes.status).toBe(400);
+      expect(deleteRes.body).toHaveProperty('error');
+    });
+  });
+
   describe('POST /api/items', () => {
     it('should create a new item', async () => {
       const newItem = { name: 'Test Item' };
